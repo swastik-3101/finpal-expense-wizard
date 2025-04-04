@@ -1,10 +1,19 @@
 
 import axios from 'axios';
 
+// Determine the API base URL based on environment
+const getBaseUrl = () => {
+  // If in production, use the production URL
+  if (import.meta.env.PROD) {
+    return 'https://your-production-api-url.com/api';
+  }
+  // For local development
+  return 'http://localhost:4000/api';
+};
+
 // Create an axios instance with the API base URL
-// This should be updated to your actual backend URL when deployed
 const api = axios.create({
-  baseURL: 'http://localhost:4000/api', // Default development server URL
+  baseURL: getBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
