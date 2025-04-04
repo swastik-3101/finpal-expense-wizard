@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import Expenses from "./pages/Expenses";
 import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
+import Index from "./pages/Index";
 
 const queryClient = new QueryClient();
 
@@ -25,8 +26,9 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
+              <Route path="/" element={<Index />} />
               <Route 
-                path="/" 
+                path="/auth" 
                 element={
                   <PublicRoute>
                     <Auth />

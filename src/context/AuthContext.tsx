@@ -36,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       try {
         const response = await api.get('/auth/me');
+        console.log("Auth verification response:", response.data);
         setUser(response.data.user);
       } catch (error) {
         console.error('Failed to verify token:', error);
@@ -49,8 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
+    setIsLoading(true);
     try {
       const response = await api.post('/auth/login', { email, password });
+      console.log("Login response:", response.data);
       const { token, user } = response.data;
       
       localStorage.setItem('finpal_token', token);
@@ -61,12 +64,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Login error:', error);
       const errorMessage = error.response?.data?.message || 'Failed to login';
       return Promise.reject(new Error(errorMessage));
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const register = async (email: string, password: string, name: string) => {
+    setIsLoading(true);
     try {
       const response = await api.post('/auth/register', { email, password, name });
+      console.log("Registration response:", response.data);
       const { token, user } = response.data;
       
       localStorage.setItem('finpal_token', token);
@@ -77,6 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Registration error:', error);
       const errorMessage = error.response?.data?.message || 'Failed to register';
       return Promise.reject(new Error(errorMessage));
+    } finally {
+      setIsLoading(false);
     }
   };
 
