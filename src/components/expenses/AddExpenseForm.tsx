@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Receipt, Mic } from "lucide-react";
+import { PlusCircle, Receipt, Mic, Loader2 } from "lucide-react";
+import { expenseService } from "@/api/expenseService";
 
 interface AddExpenseFormProps {
   onAddExpense: (expense: {
@@ -35,6 +36,8 @@ export function AddExpenseForm({ onAddExpense }: AddExpenseFormProps) {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -70,11 +73,6 @@ export function AddExpenseForm({ onAddExpense }: AddExpenseFormProps) {
     setTitle("");
     setAmount("");
     setCategory("");
-    
-    toast({
-      title: "Success",
-      description: "Expense added successfully",
-    });
   };
 
   const handleVoiceInput = () => {
@@ -91,11 +89,45 @@ export function AddExpenseForm({ onAddExpense }: AddExpenseFormProps) {
     }, 2000);
   };
 
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    setIsUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('receipt', file);
+      
+      const result = await expenseService.uploadReceipt(formData);
+      
+      // Set form data from receipt analysis
+      if (result.data) {
+        setTitle(result.data.title || '');
+        setAmount(result.data.amount ? result.data.amount.toString() : '');
+        setCategory(result.data.category || '');
+      }
+      
+      toast({
+        title: "Success",
+        description: "Receipt processed successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process receipt",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleReceiptUpload = () => {
-    toast({
-      title: "Receipt Upload",
-      description: "Feature coming soon!",
-    });
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   return (
@@ -149,15 +181,27 @@ export function AddExpenseForm({ onAddExpense }: AddExpenseFormProps) {
               </SelectContent>
             </Select>
           </div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileInputChange}
+            className="hidden"
+            accept="image/*"
+          />
           <div className="flex justify-center gap-4 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={handleReceiptUpload}
               className="flex-1"
+              disabled={isUploading}
             >
-              <Receipt className="mr-2 h-4 w-4" />
-              Upload Receipt
+              {isUploading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Receipt className="mr-2 h-4 w-4" />
+              )}
+              {isUploading ? 'Processing...' : 'Upload Receipt'}
             </Button>
             <Button
               type="button"

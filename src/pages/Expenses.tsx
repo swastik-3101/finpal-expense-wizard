@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AddExpenseForm } from "@/components/expenses/AddExpenseForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -11,61 +10,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { ShoppingBag, Coffee, Home, Car, Search, Utensils, Cpu } from "lucide-react";
-
-interface Expense {
-  id: string;
-  title: string;
-  amount: number;
-  category: string;
-  date: string;
-}
-
-// Mock data
-const initialExpenses: Expense[] = [
-  {
-    id: '1',
-    title: 'Grocery Shopping',
-    amount: 85.75,
-    category: 'Food',
-    date: '2025-04-01',
-  },
-  {
-    id: '2',
-    title: 'Coffee Shop',
-    amount: 4.50,
-    category: 'Food',
-    date: '2025-04-01',
-  },
-  {
-    id: '3',
-    title: 'Uber Ride',
-    amount: 24.30,
-    category: 'Transport',
-    date: '2025-03-31',
-  },
-  {
-    id: '4',
-    title: 'Streaming Service',
-    amount: 14.99,
-    category: 'Entertainment',
-    date: '2025-03-30',
-  },
-  {
-    id: '5',
-    title: 'Rent Payment',
-    amount: 1200,
-    category: 'Housing',
-    date: '2025-03-29',
-  },
-  {
-    id: '6',
-    title: 'Gas Bill',
-    amount: 45.20,
-    category: 'Utilities',
-    date: '2025-03-28',
-  },
-];
+import { ShoppingBag, Coffee, Home, Car, Search, Utensils, Cpu, Loader2 } from "lucide-react";
+import { expenseService, Expense } from "@/api/expenseService";
+import { useToast } from "@/hooks/use-toast";
 
 const getCategoryIcon = (category: string) => {
   switch (category.toLowerCase()) {
@@ -85,21 +32,52 @@ const getCategoryIcon = (category: string) => {
 };
 
 export default function Expenses() {
-  const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
-  const handleAddExpense = (newExpense: {
+  useEffect(() => {
+    loadExpenses();
+  }, []);
+
+  const loadExpenses = async () => {
+    setIsLoading(true);
+    try {
+      const data = await expenseService.getExpenses();
+      setExpenses(data);
+      setIsLoading(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load expenses",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddExpense = async (newExpense: {
     title: string;
     amount: number;
     category: string;
     date: string;
   }) => {
-    const expense: Expense = {
-      ...newExpense,
-      id: Math.random().toString(36).substring(2, 11),
-    };
-    
-    setExpenses([expense, ...expenses]);
+    try {
+      const savedExpense = await expenseService.addExpense(newExpense);
+      setExpenses([savedExpense, ...expenses]);
+      
+      toast({
+        title: "Success",
+        description: "Expense added successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add expense",
+        variant: "destructive",
+      });
+    }
   };
   
   const filteredExpenses = expenses.filter((expense) =>
@@ -139,27 +117,39 @@ export default function Expenses() {
             </div>
             
             <TabsContent value="all" className="p-0">
-              <ExpenseList expenses={filteredExpenses} />
+              {isLoading ? <LoadingState /> : <ExpenseList expenses={filteredExpenses} />}
             </TabsContent>
             
             <TabsContent value="recent" className="p-0">
-              <ExpenseList 
-                expenses={filteredExpenses.slice().sort((a, b) => 
-                  new Date(b.date).getTime() - new Date(a.date).getTime()
-                )} 
-              />
+              {isLoading ? <LoadingState /> : (
+                <ExpenseList 
+                  expenses={filteredExpenses.slice().sort((a, b) => 
+                    new Date(b.date).getTime() - new Date(a.date).getTime()
+                  )} 
+                />
+              )}
             </TabsContent>
             
             <TabsContent value="highest" className="p-0">
-              <ExpenseList 
-                expenses={filteredExpenses.slice().sort((a, b) => 
-                  b.amount - a.amount
-                )} 
-              />
+              {isLoading ? <LoadingState /> : (
+                <ExpenseList 
+                  expenses={filteredExpenses.slice().sort((a, b) => 
+                    b.amount - a.amount
+                  )} 
+                />
+              )}
             </TabsContent>
           </Tabs>
         </div>
       </div>
+    </div>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="flex justify-center items-center py-12">
+      <Loader2 className="h-8 w-8 animate-spin text-finpal-500" />
     </div>
   );
 }

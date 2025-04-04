@@ -1,5 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import api from '@/api/apiConfig';
+import { toast } from '@/hooks/use-toast';
 
 type User = {
   id: string;
@@ -23,46 +25,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is stored in localStorage
-    const storedUser = localStorage.getItem('finpal_user');
+    // Check if token exists and verify it with the backend
+    const verifyToken = async () => {
+      const token = localStorage.getItem('finpal_token');
+      
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        const response = await api.get('/auth/me');
+        setUser(response.data.user);
+      } catch (error) {
+        console.error('Failed to verify token:', error);
+        localStorage.removeItem('finpal_token');
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    
-    setIsLoading(false);
+    verifyToken();
   }, []);
 
   const login = async (email: string, password: string) => {
-    // For demo purposes, we'll just create a mock user
-    // In a real app, you would call an API to authenticate
-    const mockUser = {
-      id: '1',
-      name: 'Demo User',
-      email: email,
-    };
-    
-    // Store user in localStorage
-    localStorage.setItem('finpal_user', JSON.stringify(mockUser));
-    setUser(mockUser);
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const { token, user } = response.data;
+      
+      localStorage.setItem('finpal_token', token);
+      setUser(user);
+      
+      return Promise.resolve();
+    } catch (error: any) {
+      console.error('Login error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to login';
+      return Promise.reject(new Error(errorMessage));
+    }
   };
 
   const register = async (email: string, password: string, name: string) => {
-    // For demo purposes, we'll just create a mock user
-    // In a real app, you would call an API to register
-    const mockUser = {
-      id: '1',
-      name: name,
-      email: email,
-    };
-    
-    // Store user in localStorage
-    localStorage.setItem('finpal_user', JSON.stringify(mockUser));
-    setUser(mockUser);
+    try {
+      const response = await api.post('/auth/register', { email, password, name });
+      const { token, user } = response.data;
+      
+      localStorage.setItem('finpal_token', token);
+      setUser(user);
+      
+      return Promise.resolve();
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to register';
+      return Promise.reject(new Error(errorMessage));
+    }
   };
 
   const logout = () => {
-    localStorage.removeItem('finpal_user');
+    localStorage.removeItem('finpal_token');
     setUser(null);
   };
 
