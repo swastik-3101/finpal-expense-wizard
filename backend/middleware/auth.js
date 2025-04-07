@@ -3,27 +3,24 @@ const User = require('../models/User');
 
 const auth = async (req, res, next) => {
   try {
-    // Get token from header
-    const token = req.header('x-auth-token');
-
-    if (!token) {
+    const authHeader = req.header('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ msg: 'No token, authorization denied' });
     }
 
-    // Verify token
-    const JWT_SECRET = process.env.JWT_SECRET || 'default_jwt_secret_key';
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const token = authHeader.split(' ')[1]; // Get the token part
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_jwt_secret_key');
 
-    // Add user from payload
     req.user = await User.findById(decoded.user.id).select('-password');
     if (!req.user) {
       return res.status(401).json({ msg: 'User not found' });
     }
-    
+
     next();
   } catch (err) {
     res.status(401).json({ msg: 'Token is not valid' });
   }
 };
+
 
 module.exports = auth;
