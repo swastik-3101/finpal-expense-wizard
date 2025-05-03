@@ -1,53 +1,52 @@
-
+import { useEffect, useState } from "react";
 import { BalanceCard } from "@/components/dashboard/BalanceCard";
 import { SpendingOverview } from "@/components/dashboard/SpendingOverview";
 import { RecentTransactions } from "@/components/dashboard/RecentTransactions";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-const mockSpendingData = [
-  { name: 'Food', value: 500, color: '#FF6384' },
-  { name: 'Housing', value: 1200, color: '#36A2EB' },
-  { name: 'Transport', value: 300, color: '#FFCE56' },
-  { name: 'Entertainment', value: 200, color: '#4BC0C0' },
-  { name: 'Utilities', value: 150, color: '#9966FF' },
-];
-
-const mockTransactions = [
-  {
-    id: '1',
-    title: 'Grocery Shopping',
-    amount: 85.75,
-    date: '2025-04-01',
-    category: 'Food',
-  },
-  {
-    id: '2',
-    title: 'Coffee Shop',
-    amount: 4.50,
-    date: '2025-04-01',
-    category: 'Coffee',
-  },
-  {
-    id: '3',
-    title: 'Uber Ride',
-    amount: 24.30,
-    date: '2025-03-31',
-    category: 'Transport',
-  },
-  {
-    id: '4',
-    title: 'Streaming Service',
-    amount: 14.99,
-    date: '2025-03-30',
-    category: 'Entertainment',
-  },
-];
+import { expenseService, Expense } from "@/api/expenseService";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchExpenses = async () => {
+      try {
+        const data = await expenseService.getExpenses();
+        setExpenses(data);
+      } catch (err) {
+        console.error("Failed to load expenses", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchExpenses();
+  }, []);
+
+  // 🧠 Recent transactions (last 5)
+  const recentTransactions = [...expenses]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 5);
+
+  // 🧮 Group by category for pie chart
+  const spendingOverviewData = Object.values(
+    expenses.reduce((acc, expense) => {
+      const category = expense.category;
+      if (!acc[category]) {
+        acc[category] = { name: category, value: 0 };
+      }
+      acc[category].value += expense.amount;
+      return acc;
+    }, {} as Record<string, { name: string; value: number }>)
+  ).map((item) => ({
+    ...item,
+    color: getCategoryColor(item.name),
+  }));
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -63,23 +62,48 @@ export default function Dashboard() {
           Add Expense
         </Button>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <BalanceCard currentBalance={2450.75} change={5.2} />
         <div className="grid grid-cols-2 gap-4">
-          <StatCard title="Monthly Spend" value="$2,345" change={-2.5} />
+          <StatCard title="Monthly Spend" value={`$${getMonthlySpend(expenses).toFixed(2)}`} change={-2.5} />
           <StatCard title="Monthly Save" value="$820" change={12} />
           <StatCard title="Bills Due" value="$450" subtitle="Next 7 days" />
           <StatCard title="Budget Left" value="62%" subtitle="Until Apr 30" />
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RecentTransactions transactions={mockTransactions} />
-        <SpendingOverview data={mockSpendingData} />
+        <RecentTransactions transactions={recentTransactions} />
+        <SpendingOverview data={spendingOverviewData} />
       </div>
     </div>
   );
+}
+
+// Helper: Monthly spending total
+function getMonthlySpend(expenses: Expense[]) {
+  const now = new Date();
+  return expenses.reduce((sum, expense) => {
+    const date = new Date(expense.date);
+    if (date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()) {
+      return sum + expense.amount;
+    }
+    return sum;
+  }, 0);
+}
+
+// Helper: Assign consistent colors by category
+function getCategoryColor(category: string) {
+  switch (category.toLowerCase()) {
+    case 'food': return '#FF6384';
+    case 'housing': return '#36A2EB';
+    case 'transport': return '#FFCE56';
+    case 'entertainment': return '#4BC0C0';
+    case 'utilities': return '#9966FF';
+    case 'coffee': return '#FFA07A';
+    default: return '#8884d8';
+  }
 }
 
 function StatCard({ title, value, change, subtitle }: { title: string, value: string, change?: number, subtitle?: string }) {
