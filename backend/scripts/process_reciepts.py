@@ -6,7 +6,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 import os
-import ast
 
 # Set Gemini API Key (replace with your actual key or load from environment)
 os.environ["GOOGLE_API_KEY"] = "AIzaSyBGfMhJ7RhVPpCp3YvZZ_Pt7p6sg6pYQwo"
@@ -77,7 +76,7 @@ def main(image_path):
         if structured_output.startswith("```"):
             structured_output = structured_output.strip("`").strip("json").strip()
 
-        parsed_json = ast.literal_eval(structured_output)
+        parsed_json = json.loads(structured_output)
         print(json.dumps(parsed_json))  # Clean JSON output for Node.js
     except Exception as e:
         print(json.dumps({"error": "Failed to process receipt", "details": str(e)}))
