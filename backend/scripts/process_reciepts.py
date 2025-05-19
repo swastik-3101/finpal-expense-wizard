@@ -1,11 +1,10 @@
 import sys
 import json
 import easyocr
-import cv2
+import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-import os
 
 # Set Gemini API Key (replace with your actual key or load from environment)
 os.environ["GOOGLE_API_KEY"] = "AIzaSyBGfMhJ7RhVPpCp3YvZZ_Pt7p6sg6pYQwo"
@@ -15,50 +14,23 @@ def run_ocr(image_path):
     results = reader.readtext(image_path)
     return results
 
-def build_prompt():
+def build_aggregate_prompt():
     return PromptTemplate.from_template("""
-You are an intelligent assistant that extracts structured data from OCR text of a receipt.
+You are an intelligent assistant that reads raw OCR text of a receipt.
 
-OCR Text:
+From the OCR text below:
+
 {ocr_text}
 
-Please parse the text and return the data in the following JSON format:
+Extract the following information and return a single JSON object in this exact format:
 
 {{
-  "merchant_info": {{
-    "name": "string",
-    "address": ["string"],
-    "phone": "string"
-  }},
-  "receipt_info": {{
-    "date": "string",
-    "time": "string",
-    "server": "string",
-    "table": "string"
-  }},
-  "items": [
-    {{
-      "name": "string",
-      "price": float
-    }}
-  ],
-  "totals": {{
-    "subtotal": float,
-    "tax": float,
-    "service_charge": {{
-      "percent": int,
-      "amount": float
-    }},
-    "total": float
-  }},
-  "tip_suggestions": {{
-    "15%": float,
-    "18%": float,
-    "20%": float
-  }}
+  "title": "string",     // merchant name or receipt title
+  "amount": number,      // total amount from the receipt
+  "category": "string"   // main spending category for the entire receipt, choose from Food, Transport, Housing, Utilities, Entertainment, Shopping, Health, Other
 }}
 
-Only return raw JSON. Do not add explanations or wrap in code blocks.
+Only return raw JSON, no explanations or code blocks.
 """)
 
 def main(image_path):
@@ -66,18 +38,20 @@ def main(image_path):
     raw_text = "\n".join([text for _, text, _ in results])
 
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
-    prompt = build_prompt()
-    chain = prompt | llm | StrOutputParser()
+
+    aggregate_prompt = build_aggregate_prompt()
+    chain = aggregate_prompt | llm | StrOutputParser()
 
     try:
-        structured_output = chain.invoke({"ocr_text": raw_text})
+        output = chain.invoke({"ocr_text": raw_text})
 
-        # Remove triple backticks if any
-        if structured_output.startswith("```"):
-            structured_output = structured_output.strip("`").strip("json").strip()
+        # Clean up if wrapped in backticks or code block tags
+        if output.startswith("```"):
+            output = output.strip("`").strip("json").strip()
 
-        parsed_json = json.loads(structured_output)
-        print(json.dumps(parsed_json))  # Clean JSON output for Node.js
+        parsed = json.loads(output)
+        print(json.dumps(parsed))
+
     except Exception as e:
         print(json.dumps({"error": "Failed to process receipt", "details": str(e)}))
 

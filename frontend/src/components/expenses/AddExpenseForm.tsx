@@ -150,16 +150,18 @@ export function AddExpenseForm({ onAddExpense }: AddExpenseFormProps) {
 
       const result = await expenseService.uploadReceipt(formData);
 
-      // result is already the data returned by backend
-      if (result) {
-        setTitle(result.title || "");
-        setAmount(result.amount ? result.amount.toString() : "");
-        setCategory(result.category || "");
+      // Extract parsedExpense from result
+      const parsed = result?.parsedExpense;
+
+      if (parsed) {
+        setTitle(parsed.title || "");
+        setAmount(parsed.amount ? parsed.amount.toString() : "");
+        setCategory(parsed.category || "");
       }
 
       toast({
         title: "Success",
-        description: "Receipt processed successfully",
+        description: result?.msg || "Receipt processed successfully",
       });
     } catch (error) {
       toast({
