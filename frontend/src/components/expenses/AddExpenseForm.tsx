@@ -150,10 +150,11 @@ export function AddExpenseForm({ onAddExpense }: AddExpenseFormProps) {
 
       const result = await expenseService.uploadReceipt(formData);
 
-      if (result.data) {
-        setTitle(result.data.title || "");
-        setAmount(result.data.amount ? result.data.amount.toString() : "");
-        setCategory(result.data.category || "");
+      // result is already the data returned by backend
+      if (result) {
+        setTitle(result.title || "");
+        setAmount(result.amount ? result.amount.toString() : "");
+        setCategory(result.category || "");
       }
 
       toast({

@@ -7,12 +7,15 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { AppContextProvider } from "./context/newvontext";
 import { ProtectedRoute, PublicRoute } from "./context/RouteGuard";
+import ChatbotWrapper from "./components/chatbot/ChatbotWrapper";
 
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Expenses from "./pages/Expenses";
 import Analytics from "./pages/Analytics";
 import Goals from "./pages/Goals";
+import Insights from "./pages/insights";
+
 import Income from "./pages/Income";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -27,6 +30,7 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <ChatbotWrapper />
             <BrowserRouter>
               <Routes>
                 <Route 
@@ -62,6 +66,14 @@ const App = () => (
                   } 
                 />
                 <Route 
+                  path="/insights" 
+                  element={
+                    <ProtectedRoute>
+                      <Insights />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route 
                   path="/goals" 
                   element={
                     <ProtectedRoute>
@@ -87,6 +99,7 @@ const App = () => (
                 />
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              
             </BrowserRouter>
           </TooltipProvider>
         </AppContextProvider>

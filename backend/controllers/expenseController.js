@@ -1,38 +1,36 @@
 const Expense = require('../models/Expense');
 const multer = require('multer');
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 
-// Configure multer for file uploads
+// Multer disk storage config
 const storage = multer.diskStorage({
   destination: function(req, file, cb) {
     cb(null, 'uploads/');
   },
   filename: function(req, file, cb) {
-    cb(null, new Date().toISOString().replace(/:/g, '-') + '-' + file.originalname);
+    cb(null, new Date().toISOString().replace(/:/g, '-') + '-' + file.originalname.replace(/\s/g, '_'));
   }
 });
 
-// File filter for receipt uploads
+// Accept only image files
 const fileFilter = (req, file, cb) => {
-  // Accept only images
   if (file.mimetype.startsWith('image/')) {
     cb(null, true);
   } else {
-    cb(new Error('Please upload only image files'), false);
+    cb(new Error('Only image files allowed'), false);
   }
 };
 
-// Initialize multer upload
+// Multer middleware for single receipt upload
 exports.upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 1024 * 1024 * 5 // Limit to 5MB
-  },
-  fileFilter: fileFilter
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter
 }).single('receipt');
 
-// @route   GET api/expenses
-// @desc    Get all expenses for the logged-in user
-// @access  Private
+// Get all expenses for logged-in user
 exports.getExpenses = async (req, res) => {
   try {
     const expenses = await Expense.find({ user: req.user.id }).sort({ date: -1 });
@@ -43,9 +41,7 @@ exports.getExpenses = async (req, res) => {
   }
 };
 
-// @route   POST api/expenses
-// @desc    Create a new expense
-// @access  Private
+// Create a new expense
 exports.createExpense = async (req, res) => {
   try {
     const { title, amount, category, date } = req.body;
@@ -66,25 +62,16 @@ exports.createExpense = async (req, res) => {
   }
 };
 
-// @route   PUT api/expenses/:id
-// @desc    Update an expense
-// @access  Private
+// Update an existing expense
 exports.updateExpense = async (req, res) => {
   try {
     const { title, amount, category, date } = req.body;
 
-    // Check if expense exists
     let expense = await Expense.findById(req.params.id);
-    if (!expense) {
-      return res.status(404).json({ msg: 'Expense not found' });
-    }
+    if (!expense) return res.status(404).json({ msg: 'Expense not found' });
 
-    // Check if expense belongs to user
-    if (expense.user.toString() !== req.user.id) {
-      return res.status(401).json({ msg: 'Not authorized' });
-    }
+    if (expense.user.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
 
-    // Update expense
     expense = await Expense.findByIdAndUpdate(
       req.params.id,
       { $set: { title, amount, category, date } },
@@ -98,21 +85,13 @@ exports.updateExpense = async (req, res) => {
   }
 };
 
-// @route   DELETE api/expenses/:id
-// @desc    Delete an expense
-// @access  Private
+// Delete an expense
 exports.deleteExpense = async (req, res) => {
   try {
-    // Check if expense exists
     const expense = await Expense.findById(req.params.id);
-    if (!expense) {
-      return res.status(404).json({ msg: 'Expense not found' });
-    }
+    if (!expense) return res.status(404).json({ msg: 'Expense not found' });
 
-    // Check if expense belongs to user
-    if (expense.user.toString() !== req.user.id) {
-      return res.status(401).json({ msg: 'Not authorized' });
-    }
+    if (expense.user.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
 
     await Expense.findByIdAndRemove(req.params.id);
     res.json({ msg: 'Expense removed' });
@@ -122,28 +101,15 @@ exports.deleteExpense = async (req, res) => {
   }
 };
 
-// @route   GET api/expenses/categories
-// @desc    Get expense categories
-// @access  Private
+// Get distinct expense categories
 exports.getCategories = async (req, res) => {
   try {
-    // Get distinct categories for this user
     const categories = await Expense.distinct('category', { user: req.user.id });
-    
-    // If no custom categories yet, return default ones
     if (categories.length === 0) {
       return res.json([
-        'Food', 
-        'Transportation', 
-        'Housing', 
-        'Utilities', 
-        'Entertainment', 
-        'Healthcare', 
-        'Shopping', 
-        'Other'
+        'Food', 'Transportation', 'Housing', 'Utilities', 'Entertainment', 'Healthcare', 'Shopping', 'Other'
       ]);
     }
-    
     res.json(categories);
   } catch (err) {
     console.error(err.message);
@@ -151,32 +117,108 @@ exports.getCategories = async (req, res) => {
   }
 };
 
-// @route   POST api/expenses/upload-receipt
-// @desc    Upload and process a receipt image
-// @access  Private
+// Upload receipt and process with Python OCR script
 exports.uploadReceipt = async (req, res) => {
   try {
-    // In a real application, you would process the uploaded receipt image here
-    // This could involve OCR to extract expense information
-    
-    // For now, we'll just acknowledge the upload
-    if (!req.file) {
-      return res.status(400).json({ msg: 'No file uploaded' });
-    }
-    
-    res.json({ 
-      msg: 'Receipt uploaded successfully',
-      file: req.file.filename,
-      // In a real app, you would return extracted data from the receipt
-      suggestedExpense: {
-        title: 'Receipt Upload',
-        amount: 0,
-        category: 'Other',
-        date: new Date().toISOString().split('T')[0]
+    if (!req.file) return res.status(400).json({ msg: 'No file uploaded' });
+
+    const filePath = path.resolve(req.file.path);
+
+    const pythonProcess = spawn(
+  'C:\\Users\\swast\\AppData\\Local\\Programs\\Python\\Python312\\python.exe',
+  ['scripts/process_reciepts.py', filePath]
+);
+
+
+    let data = '';
+    let errorData = '';
+
+    pythonProcess.stdout.on('data', chunk => {
+      data += chunk.toString();
+    });
+
+    pythonProcess.stderr.on('data', chunk => {
+      errorData += chunk.toString();
+    });
+
+    pythonProcess.on('close', (code) => {
+      // Delete uploaded file after processing
+      fs.unlink(filePath, err => {
+        if (err) console.error('Error deleting uploaded receipt:', err);
+      });
+
+      if (code !== 0) {
+        console.error('Python script error:', errorData);
+        return res.status(500).json({ msg: 'Error processing receipt' });
+      }
+
+      try {
+        const parsedData = JSON.parse(data);
+        // Optionally, you can save parsedData as an expense here or send to client
+
+        res.json({
+          msg: 'Receipt processed successfully',
+          parsedExpense: parsedData
+        });
+      } catch (err) {
+        console.error('JSON parse error:', err);
+        res.status(500).json({ msg: 'Failed to parse receipt processing output' });
       }
     });
   } catch (err) {
-    console.error(err.message);
+    console.error(err);
     res.status(500).send('Server error');
+  }
+};
+
+// Get summarized expense context for chatbot (last 30 days)
+exports.getChatContext = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    const expenses = await Expense.find({
+      user: userId,
+      date: { $gte: thirtyDaysAgo.toISOString() }
+    });
+
+    if (!expenses.length) {
+      return res.json({ context: "You have no expenses in the past 30 days." });
+    }
+
+    let total = 0;
+    const categoryTotals = {};
+    let highestExpense = { title: "", amount: 0 };
+
+    for (const exp of expenses) {
+      total += exp.amount;
+      categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + exp.amount;
+
+      if (exp.amount > highestExpense.amount) {
+        highestExpense = { title: exp.title, amount: exp.amount };
+      }
+    }
+
+    const days = (today - thirtyDaysAgo) / (1000 * 60 * 60 * 24);
+    const averagePerDay = total / days;
+
+    const topCategories = Object.entries(categoryTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([cat, amt]) => `${cat}: $${amt.toFixed(2)}`)
+      .join(", ");
+
+    const summary =
+      `In the last 30 days, you spent a total of $${total.toFixed(2)}.\n` +
+      `Top categories: ${topCategories}.\n` +
+      `Your highest expense was "${highestExpense.title}" at $${highestExpense.amount.toFixed(2)}.\n` +
+      `You're spending an average of $${averagePerDay.toFixed(2)} per day.`;
+
+    res.json({ context: summary });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ error: "Failed to generate chat context" });
   }
 };

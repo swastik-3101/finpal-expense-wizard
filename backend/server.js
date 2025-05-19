@@ -4,6 +4,8 @@ const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/authRoutes');
 const expenseRoutes = require('./routes/expenseRoutes');
+const receiptRoutes = require('./routes/recieptRoutes');
+
 
 // Connect to database
 connectDB();
@@ -15,8 +17,11 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.use('/uploads', express.static('uploads'));
+
 app.use('/api/auth', authRoutes);
 app.use('/api/expenses', expenseRoutes);
+app.use('/api/receipt', receiptRoutes);
 
 // Error handler
 app.use(errorHandler);

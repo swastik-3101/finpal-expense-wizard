@@ -7,7 +7,8 @@ const {
   deleteExpense, 
   getCategories,
   upload,
-  uploadReceipt
+  uploadReceipt,
+  getChatContext
 } = require('../controllers/expenseController');
 const auth = require('../middleware/auth');
 const { check, validationResult } = require('express-validator');
@@ -76,5 +77,6 @@ router.get('/categories', auth, getCategories);
 // @desc    Upload and process a receipt image
 // @access  Private
 router.post('/upload-receipt', auth, upload, uploadReceipt);
+router.get('/chat-context', auth, getChatContext);
 
 module.exports = router;
