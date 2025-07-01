@@ -66,9 +66,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <BalanceCard currentBalance={2450.75} change={5.2} />
         <div className="grid grid-cols-2 gap-4">
-          <StatCard title="Monthly Spend" value={`$${getMonthlySpend(expenses).toFixed(2)}`} change={-2.5} />
-          <StatCard title="Monthly Save" value="$820" change={12} />
-          <StatCard title="Bills Due" value="$450" subtitle="Next 7 days" />
+          <StatCard title="Monthly Spend" value={`₹${getMonthlySpend(expenses).toFixed(2)}`} change={-2.5} />
+          <StatCard title="Monthly Save" value="₹820" change={12} />
+          <StatCard title="Bills Due" value="₹450" subtitle="Next 7 days" />
           <StatCard title="Budget Left" value="62%" subtitle="Until Apr 30" />
         </div>
       </div>

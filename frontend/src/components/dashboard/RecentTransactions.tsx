@@ -56,7 +56,7 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
                   </p>
                 </div>
               </div>
-              <p className="text-sm font-medium">-${transaction.amount.toFixed(2)}</p>
+              <p className="text-sm font-medium">-₹{transaction.amount.toFixed(2)}</p>
             </div>
           ))}
         </div>

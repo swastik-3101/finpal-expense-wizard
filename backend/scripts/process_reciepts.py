@@ -6,7 +6,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-# Set Gemini API Key (replace with your actual key or load from environment)
+
 os.environ["GOOGLE_API_KEY"] = "AIzaSyBGfMhJ7RhVPpCp3YvZZ_Pt7p6sg6pYQwo"
 
 def run_ocr(image_path):

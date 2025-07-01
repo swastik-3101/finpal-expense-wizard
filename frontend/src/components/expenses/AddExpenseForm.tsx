@@ -99,12 +99,12 @@ export function AddExpenseForm({ onAddExpense }: AddExpenseFormProps) {
       const transcript = event.results[0][0].transcript.toLowerCase();
       console.log("Transcript:", transcript);
 
-      const amountMatch = transcript.match(/\$?(\d+(\.\d{1,2})?)/);
+      const amountMatch = transcript.match(/₹?(\d+(\.\d{1,2})?)/);
       const categoryMatch = transcript.match(
         /(food|transport|housing|utilities|entertainment|shopping|health|other)/i
       );
       const titleMatch = transcript
-        .replace(/\$?\d+(\.\d{1,2})?/, "")
+        .replace(/₹?\d+(\.\d{1,2})?/, "")
         .replace(categoryMatch?.[0] || "", "")
         .trim();
 
@@ -200,7 +200,7 @@ export function AddExpenseForm({ onAddExpense }: AddExpenseFormProps) {
           <div className="space-y-2">
             <Label htmlFor="amount">Amount</Label>
             <div className="relative">
-              <span className="absolute left-3 top-3 text-muted-foreground">$</span>
+              <span className="absolute left-3 top-3 text-muted-foreground">₹</span>
               <Input
                 id="amount"
                 type="number"

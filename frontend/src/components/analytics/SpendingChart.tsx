@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -34,10 +33,10 @@ export function SpendingChart({ data, title }: SpendingChartProps) {
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis dataKey="date" />
               <YAxis 
-                tickFormatter={(value) => `$${value}`}
+                tickFormatter={(value) => `₹${value}`}
               />
               <Tooltip 
-                formatter={(value: number) => [`$${value}`, 'Spent']} 
+                formatter={(value: number) => [`₹${value}`, 'Spent']} 
                 labelFormatter={(label) => `Date: ${label}`}
               />
               <Line

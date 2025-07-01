@@ -8,9 +8,9 @@ interface BalanceCardProps {
 }
 
 export function BalanceCard({ currentBalance, change }: BalanceCardProps) {
-  const formattedBalance = new Intl.NumberFormat('en-US', {
+  const formattedBalance = new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'INR',
   }).format(currentBalance);
   
   const isPositive = change >= 0;

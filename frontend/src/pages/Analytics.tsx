@@ -81,9 +81,9 @@ export default function Analytics() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            <StatCard title="Total Spending" value={`$${monthlyData.reduce((sum, d) => sum + d.amount, 0).toFixed(0)}`} subtitle="This Month" />
-            <StatCard title="Avg. Daily Spend" value={`$${(weeklyData.reduce((s, d) => s + d.amount, 0) / 7).toFixed(0)}`} change={-3.2} />
-            <StatCard title="Budget Status" value="On Track" subtitle="$450 remaining" />
+            <StatCard title="Total Spending" value={`₹${monthlyData.reduce((sum, d) => sum + d.amount, 0).toFixed(0)}`} subtitle="This Month" />
+            <StatCard title="Avg. Daily Spend" value={`₹${(weeklyData.reduce((s, d) => s + d.amount, 0) / 7).toFixed(0)}`} change={-3.2} />
+            <StatCard title="Budget Status" value="On Track" subtitle="₹450 remaining" />
           </div>
         </TabsContent>
         
@@ -104,7 +104,7 @@ export default function Analytics() {
                   >
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                     <XAxis dataKey="name" />
-                    <YAxis tickFormatter={(value) => `$${value}`} />
+                    <YAxis tickFormatter={(value) => `₹${value}`} />
                     <Tooltip formatter={(value: number) => [`$${value}`, 'Amount']} />
                     <Bar name="Budget" dataKey="budget" fill="#E2E8F0" radius={[4, 4, 0, 0]} />
                     <Bar name="Spending" dataKey="spending" radius={[4, 4, 0, 0]}>
@@ -118,18 +118,7 @@ export default function Analytics() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            {categoryData.slice(0, 3).map((cat, i) => (
-              <CategoryCard
-                key={cat.name}
-                name={cat.name}
-                spent={cat.spending}
-                budget={cat.budget}
-                color={cat.color}
-                trend={i === 0 ? -5 : i === 1 ? 12 : 40} // Mock trend
-              />
-            ))}
-          </div>
+          
         </TabsContent>
         
         <TabsContent value="insights">

@@ -188,7 +188,7 @@ function ExpenseList({ expenses }: { expenses: Expense[] }) {
               </TableCell>
               <TableCell>{expense.date}</TableCell>
               <TableCell className="text-right font-medium">
-                ${expense.amount.toFixed(2)}
+                ₹{expense.amount.toFixed(2)}
               </TableCell>
             </TableRow>
           ))}
