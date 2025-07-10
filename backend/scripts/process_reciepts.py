@@ -7,7 +7,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBGfMhJ7RhVPpCp3YvZZ_Pt7p6sg6pYQwo"
+os.environ["GOOGLE_API_KEY"] = "APIKEY"
 
 def run_ocr(image_path):
     reader = easyocr.Reader(['en'], gpu=False, verbose=False)
