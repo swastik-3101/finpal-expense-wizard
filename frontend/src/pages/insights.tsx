@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, AlertTriangle, TrendingUp, BrainCircuit, Lightbulb } from "lucide-react";
 
-const genAI = new GoogleGenerativeAI("AIzaSyCpGkghu3f4x5M1fmaSYNeDxwuCto3LBzI");
+const genAI = new GoogleGenerativeAI("APIKEY");
 
 const Insights = () => {
   const [insights, setInsights] = useState(null);
