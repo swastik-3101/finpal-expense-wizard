@@ -13,7 +13,7 @@ export default function SimpleChatbot() {
   const [context, setContext] = useState("");
   const [open, setOpen] = useState(false);
 
-  const GEMINI_API_KEY = ;
+  const GEMINI_API_KEY = "Api_key";
 
   // Fetch backend context
   useEffect(() => {

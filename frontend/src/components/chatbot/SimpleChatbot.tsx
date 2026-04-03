@@ -11,7 +11,7 @@ export default function SimpleChatbot() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const GEMINI_API_KEY = "AIzaSyBGfMhJ7RhVPpCp3YvZZ_Pt7p6sg6pYQwo"; // Replace with your actual Gemini API key
+  const GEMINI_API_KEY = "APIKEY"; 
 
   // Fetch expense summary context from backend
   const fetchContext = async () => {
