@@ -45,7 +45,7 @@ export default function SimpleChatbot() {
       const context = await fetchContext();
 
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
       // Add the context to systemInstruction if available
       const systemText = `You are a helpful assistant on a personal finance website called FinPal.

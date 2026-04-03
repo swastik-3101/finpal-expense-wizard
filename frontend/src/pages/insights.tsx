@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, AlertTriangle, TrendingUp, BrainCircuit, Lightbulb } from "lucide-react";
 
-const genAI = new GoogleGenerativeAI("AIzaSyCpGkghu3f4x5M1fmaSYNeDxwuCto3LBzI");
+const genAI = new GoogleGenerativeAI("AIzaSyDlLObcXOAkgsb3xmeUeQGBs7LVZ0uTmgQ");
 
 const Insights = () => {
   const [insights, setInsights] = useState(null);
@@ -48,7 +48,7 @@ const Insights = () => {
           Date | Category | Amount | Title
           ${formatted}`;
 
-        const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "models/gemini-2.0-flash" });
         const result = await model.generateContent(prompt);
         const response = await result.response.text();
         
