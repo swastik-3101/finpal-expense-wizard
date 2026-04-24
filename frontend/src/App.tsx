@@ -14,10 +14,10 @@ import Dashboard from "./pages/Dashboard";
 import Expenses from "./pages/Expenses";
 import Analytics from "./pages/Analytics";
 import Goals from "./pages/Goals";
-import Insights from "./pages/insights";
-
+import Insights from "./pages/Insights";
 import Income from "./pages/Income";
 import Settings from "./pages/Settings";
+import Investments from "./pages/Investments";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,73 +33,80 @@ const App = () => (
             <ChatbotWrapper />
             <BrowserRouter>
               <Routes>
-                <Route 
-                  path="/" 
+                <Route
+                  path="/"
                   element={
                     <PublicRoute>
                       <Auth />
                     </PublicRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/dashboard" 
+                <Route
+                  path="/dashboard"
                   element={
                     <ProtectedRoute>
                       <Dashboard />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/expenses" 
+                <Route
+                  path="/expenses"
                   element={
                     <ProtectedRoute>
                       <Expenses />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/analytics" 
+                <Route
+                  path="/analytics"
                   element={
                     <ProtectedRoute>
                       <Analytics />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/insights" 
+                <Route
+                  path="/insights"
                   element={
                     <ProtectedRoute>
                       <Insights />
                     </ProtectedRoute>
                   }
                 />
-                <Route 
-                  path="/goals" 
+                <Route
+                  path="/goals"
                   element={
                     <ProtectedRoute>
                       <Goals />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/income" 
+                <Route
+                  path="/income"
                   element={
                     <ProtectedRoute>
                       <Income />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
-                <Route 
-                  path="/settings" 
+                <Route
+                  path="/investments"
+                  element={
+                    <ProtectedRoute>
+                      <Investments />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
                   element={
                     <ProtectedRoute>
                       <Settings />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
                 <Route path="*" element={<NotFound />} />
               </Routes>
-              
             </BrowserRouter>
           </TooltipProvider>
         </AppContextProvider>

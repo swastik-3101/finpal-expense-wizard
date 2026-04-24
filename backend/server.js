@@ -1,10 +1,13 @@
+require('dotenv').config()
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/authRoutes');
 const expenseRoutes = require('./routes/expenseRoutes');
-const receiptRoutes = require('./routes/recieptRoutes');
+const investmentRoutes = require('./routes/investmentRoutes');
+const marketRoutes = require('./routes/marketRoutes');
+const insightsRoutes = require('./routes/insightsRoutes');
 
 
 // Connect to database
@@ -21,7 +24,9 @@ app.use('/uploads', express.static('uploads'));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/expenses', expenseRoutes);
-app.use('/api/receipt', receiptRoutes);
+app.use('/api/investments', investmentRoutes);
+app.use('/api/market', marketRoutes);
+app.use('/api/insights', insightsRoutes);
 
 // Error handler
 app.use(errorHandler);

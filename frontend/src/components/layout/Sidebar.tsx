@@ -10,6 +10,7 @@ import {
   PieChart,
   Target,
   DollarSign,
+  TrendingUp,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -28,10 +29,9 @@ function NavItem({ icon: Icon, label, to }: NavItemProps) {
       to={to}
       className={({ isActive }) => `
         flex items-center gap-3 px-3 py-2 rounded-md transition-colors
-        ${
-          isActive
-            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-            : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+        ${isActive
+          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          : "text-sidebar-foreground hover:bg-sidebar-accent/50"
         }
       `}
     >
@@ -57,9 +57,10 @@ export function Sidebar({ isOpen }: SidebarProps) {
           <NavItem icon={Home} label="Dashboard" to="/dashboard" />
           <NavItem icon={Wallet} label="Expenses" to="/expenses" />
           <NavItem icon={BarChart2} label="Analytics" to="/analytics" />
-          <NavItem icon={PieChart} label="Insights" to="/insights" /> {/* <-- Added */}
+          <NavItem icon={PieChart} label="Insights" to="/insights" />
           <NavItem icon={Target} label="Goals" to="/goals" />
           <NavItem icon={DollarSign} label="Income" to="/income" />
+          <NavItem icon={TrendingUp} label="Investments" to="/investments" />
           <NavItem icon={Settings} label="Settings" to="/settings" />
         </div>
         <Separator className="my-4 bg-sidebar-accent" />
