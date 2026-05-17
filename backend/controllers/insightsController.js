@@ -1,7 +1,14 @@
 const axios = require('axios');
 const Groq = require('groq-sdk');
+const Expense = require('../models/Expense');
+const StockSnapshot = require('../models/StockSnapshot');
+const { saveSnapshot } = require('../services/snapshotService');
+const { recommendStocks } = require('../services/recommendationService');
 
-const groq = new Groq({ apiKey: "yourapikeyhere"});
+const getGroq = () => {
+    const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY_STOCKS;
+    return apiKey ? new Groq({ apiKey }) : null;
+};
 
 const FINNHUB_KEY = 'yourapikeyhere';
 const ALPHA_KEY = 'yourapikeyhere';
@@ -31,6 +38,209 @@ async function getDashboardData() {
     const url = `https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${ALPHA_KEY}`;
     return await httpGet(url);
 }
+
+function parsePercent(value) {
+    const n = parseFloat(String(value || '').replace('%', ''));
+    return Number.isFinite(n) ? n : 0;
+}
+
+function moverToSnapshot(mover) {
+    return {
+        symbol: String(mover.ticker || '').toUpperCase(),
+        price: Number(mover.price) || 0,
+        volume: Number(mover.volume) || 0,
+        priceChange: parsePercent(mover.change_percentage),
+        rsi: 50,
+    };
+}
+
+async function attachPreviousSnapshots(snapshots) {
+    const today = new Date().toISOString().split('T')[0];
+
+    return Promise.all(snapshots.map(async (snapshot) => {
+        const previous = await StockSnapshot.findOne({
+            symbol: snapshot.symbol,
+            date: { $ne: today },
+        }).sort({ date: -1 });
+
+        if (!previous) return snapshot;
+
+        const previousPrice = Number(previous.price);
+        const currentPrice = Number(snapshot.price);
+        const changeFromPreviousSnapshot =
+            previousPrice > 0 ? ((currentPrice - previousPrice) / previousPrice) * 100 : null;
+
+        return {
+            ...snapshot,
+            previousSnapshotDate: previous.date,
+            previousSnapshotPrice: previousPrice,
+            changeFromPreviousSnapshot,
+        };
+    }));
+}
+
+function uniqueMoverSnapshots(movers) {
+    const seen = new Set();
+    return movers
+        .map(moverToSnapshot)
+        .filter((snapshot) => {
+            if (
+                !snapshot.symbol ||
+                !snapshot.price ||
+                !snapshot.volume ||
+                seen.has(snapshot.symbol) ||
+                !/^[A-Z]{1,5}$/.test(snapshot.symbol) ||
+                /[WRU]$/.test(snapshot.symbol) ||
+                snapshot.price < 5
+            ) return false;
+            seen.add(snapshot.symbol);
+            return true;
+        });
+}
+
+async function getExpenseSummary(userId) {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    const expenses = await Expense.find({
+        user: userId,
+        date: { $gte: thirtyDaysAgo.toISOString() },
+    });
+
+    const total = expenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
+    const categoryTotals = expenses.reduce((acc, exp) => {
+        acc[exp.category] = (acc[exp.category] || 0) + Number(exp.amount || 0);
+        return acc;
+    }, {});
+
+    const topCategories = Object.entries(categoryTotals)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([category, amount]) => ({ category, amount }));
+
+    return {
+        total,
+        averagePerDay: total / 30,
+        count: expenses.length,
+        topCategories,
+    };
+}
+
+function chooseRecommendation(recommendations, snapshots, availableBalance) {
+    const maxBudget = availableBalance * 0.1;
+    const sorted = [...recommendations].sort((a, b) => b.confidence - a.confidence);
+    const learnedPick = sorted.find((rec) => Number(rec.price) > 0 && Number(rec.price) <= maxBudget);
+    if (learnedPick) return { ...learnedPick, source: 'learned' };
+
+    const marketPick = [...snapshots]
+        .filter((snap) => snap.price > 0 && snap.price <= maxBudget)
+        .sort((a, b) => (b.priceChange || 0) - (a.priceChange || 0))[0];
+
+    if (!marketPick) return null;
+
+    return {
+        symbol: marketPick.symbol,
+        price: marketPick.price,
+        previousSnapshotDate: marketPick.previousSnapshotDate,
+        previousSnapshotPrice: marketPick.previousSnapshotPrice,
+        changeFromPreviousSnapshot: marketPick.changeFromPreviousSnapshot,
+        confidence: 0,
+        pattern: marketPick.priceChange > 3 ? 'SPIKE' : 'MARKET_MOMENTUM',
+        successCount: 0,
+        failCount: 0,
+        source: 'market',
+    };
+}
+
+function buildFallbackPersonalizedResponse({ availableBalance, expenseSummary, pick }) {
+    if (!availableBalance || availableBalance <= 0) {
+        return 'I could not find your available balance in the database yet, so I cannot size a stock purchase safely. Add or update your balance first, then I can recommend a small 5-10% investment amount.';
+    }
+
+    if (!pick) {
+        return `You have $${availableBalance.toFixed(2)} available and spent $${expenseSummary.total.toFixed(2)} in the last 30 days. I would not force a stock buy today because none of the clean stock candidates fit inside a safe 5-10% budget. Keep cash ready and wait for a clearer affordable signal.`;
+    }
+
+    const maxBudget = availableBalance * 0.075;
+    const quantity = Math.max(1, Math.floor(maxBudget / pick.price));
+    const estimatedCost = quantity * pick.price;
+    const confidenceText = pick.confidence ? `${Math.round(pick.confidence * 100)}% learned confidence` : 'market-momentum signal';
+    const previousText = pick.previousSnapshotPrice
+        ? ` In the previous saved snapshot on ${pick.previousSnapshotDate}, it was $${pick.previousSnapshotPrice.toFixed(2)}; now it is about $${pick.price.toFixed(2)} (${pick.changeFromPreviousSnapshot >= 0 ? '+' : ''}${pick.changeFromPreviousSnapshot.toFixed(1)}%).`
+        : ` I do not have an older saved snapshot for ${pick.symbol} yet, so this is based on today's snapshot only.`;
+
+    return `You have $${availableBalance.toFixed(2)} available and spent $${expenseSummary.total.toFixed(2)} in the last 30 days, so do not invest the whole balance. A simple plan is ${pick.symbol}: buy ${quantity} share${quantity > 1 ? 's' : ''} at about $${pick.price.toFixed(2)} each, costing around $${estimatedCost.toFixed(2)}. That is only ${((estimatedCost / availableBalance) * 100).toFixed(1)}% of your balance.${previousText} This was picked from the ${pick.pattern} signal with ${confidenceText}.`;
+}
+
+exports.getPersonalizedStockAnalysis = async (req, res) => {
+    try {
+        if (req.user.availableBalance == null) {
+            req.user.availableBalance = 2450.75;
+            await req.user.save();
+        }
+
+        const availableBalance = Number(req.user.availableBalance || req.user.balance || req.user.currentBalance || 0);
+        const data = await getDashboardData();
+        const snapshots = await attachPreviousSnapshots(uniqueMoverSnapshots([
+            ...(data.top_gainers || []).slice(0, 10),
+            ...(data.most_actively_traded || []).slice(0, 10),
+            ...(data.top_losers || []).slice(0, 5),
+        ]));
+
+        await Promise.allSettled(snapshots.map((snapshot) => saveSnapshot(snapshot)));
+
+        const recommendations = await recommendStocks(snapshots, { confidenceThreshold: 0.6 });
+        const expenseSummary = await getExpenseSummary(req.user.id);
+        const pick = chooseRecommendation(recommendations, snapshots, availableBalance);
+        const fallback = buildFallbackPersonalizedResponse({ availableBalance, expenseSummary, pick });
+        const groq = getGroq();
+
+        if (!groq) {
+            return res.json({
+                response: fallback,
+                availableBalance,
+                expenseSummary,
+                recommendation: pick,
+                source: 'fallback',
+            });
+        }
+
+        const prompt = `You are FinPal, a personal finance stock assistant.
+
+Use only the data below. Give one direct chat-style answer.
+Recommend at most one stock and a share quantity the user can afford.
+Be conservative: suggest using only 5-10% of available balance.
+Use simple words for a non-market user.
+Mention whether the signal came from today's snapshot or learned history.
+Mention recent expenses, available balance, stock symbol, quantity, estimated cost, and one simple risk.
+If learned confidence is unavailable, say it is based on today's market momentum, not learned history.
+
+Data:
+${JSON.stringify({ availableBalance, expenseSummary, pick, recommendations: recommendations.slice(0, 5) }, null, 2)}`;
+
+        const completion = await groq.chat.completions.create({
+            model: process.env.STOCK_ANALYSIS_MODEL || 'llama-3.1-8b-instant',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 450,
+            temperature: 0.4,
+        });
+
+        res.json({
+            response: completion.choices?.[0]?.message?.content || fallback,
+            availableBalance,
+            expenseSummary,
+            recommendation: pick,
+            source: 'ai',
+        });
+    } catch (err) {
+        console.error('getPersonalizedStockAnalysis error:', err.message);
+        res.json({
+            response: 'I could not complete the live AI analysis right now, but your snapshots are still being handled in the background. Try again after checking your market API and Groq key.',
+            source: 'fallback',
+        });
+    }
+};
 
 // ── GET /api/insights/stock-data ─────────────────────────────────────────────
 exports.getStockData = async (req, res) => {
@@ -88,6 +298,9 @@ Be direct. No generic disclaimers. Use the actual data.`;
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders();
+
+        const groq = getGroq();
+        if (!groq) throw new Error('GROQ_API_KEY is not configured');
 
         const stream = await groq.chat.completions.create({
             model: 'llama-3.3-70b-versatile',

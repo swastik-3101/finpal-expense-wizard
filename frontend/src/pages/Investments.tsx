@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     investmentService,
     marketService,
+    stockLearningService,
     PortfolioItem,
     PortfolioSummary,
     InvestmentTransaction,
@@ -12,6 +13,8 @@ import {
     Candle,
     Mover,
     DashboardData,
+    StockSnapshotInput,
+    StockRecommendation,
 } from '../api/investmentService';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -31,7 +34,7 @@ const fmtVol = (v: string) => {
     return v;
 };
 
-type Tab = 'portfolio' | 'trade' | 'transactions' | 'market' | 'search';
+type Tab = 'portfolio' | 'trade' | 'transactions' | 'market' | 'search' | 'signals';
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Investments() {
@@ -66,6 +69,23 @@ export default function Investments() {
     const [candles, setCandles] = useState<Candle[]>([]);
     const [stockLoading, setStockLoading] = useState(false);
     const [detailTab, setDetailTab] = useState<'overview' | 'fundamentals' | 'chart'>('overview');
+
+    // Stock learning signals
+    const [signalForm, setSignalForm] = useState({
+        symbol: '',
+        price: '',
+        volume: '',
+        rsi: '',
+        priceChange: '',
+        avgVolume: '',
+    });
+    const [signalSnapshots, setSignalSnapshots] = useState<StockSnapshotInput[]>([]);
+    const [recommendations, setRecommendations] = useState<StockRecommendation[]>([]);
+    const [signalLoading, setSignalLoading] = useState(false);
+    const [signalMsg, setSignalMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+    const [confidenceThreshold, setConfidenceThreshold] = useState('0.6');
+    const [learningDate, setLearningDate] = useState('');
+    const [learningResult, setLearningResult] = useState<any>(null);
 
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -165,6 +185,115 @@ export default function Investments() {
         } catch (err: any) {
             setTradeMsg({ type: 'error', text: err?.response?.data?.message || 'Trade failed.' });
         } finally { setTradeLoading(false); }
+    };
+
+    const buildSignalSnapshot = (): StockSnapshotInput | null => {
+        const symbolValue = signalForm.symbol.trim().toUpperCase();
+        const price = Number(signalForm.price);
+        const volume = Number(signalForm.volume);
+        const rsi = Number(signalForm.rsi);
+        const priceChange = signalForm.priceChange === '' ? undefined : Number(signalForm.priceChange);
+        const avgVolume = signalForm.avgVolume === '' ? undefined : Number(signalForm.avgVolume);
+
+        if (!symbolValue || !Number.isFinite(price) || !Number.isFinite(volume) || !Number.isFinite(rsi)) {
+            setSignalMsg({ type: 'error', text: 'Symbol, price, volume, and RSI are required.' });
+            return null;
+        }
+
+        return {
+            symbol: symbolValue,
+            price,
+            volume,
+            rsi,
+            ...(Number.isFinite(priceChange) ? { priceChange } : {}),
+            ...(Number.isFinite(avgVolume) ? { avgVolume } : {}),
+        };
+    };
+
+    const resetSignalForm = () => {
+        setSignalForm({ symbol: '', price: '', volume: '', rsi: '', priceChange: '', avgVolume: '' });
+    };
+
+    const saveSignalSnapshot = async () => {
+        const snapshot = buildSignalSnapshot();
+        if (!snapshot) return;
+
+        setSignalLoading(true);
+        setSignalMsg(null);
+        try {
+            const res = await stockLearningService.saveSnapshot(snapshot);
+            const saved = res.snapshot || snapshot;
+            setSignalSnapshots(prev => [
+                ...prev,
+                {
+                    symbol: saved.symbol,
+                    price: saved.price,
+                    volume: saved.volume,
+                    rsi: saved.rsi,
+                    priceChange: snapshot.priceChange,
+                    avgVolume: snapshot.avgVolume,
+                },
+            ]);
+            setSignalMsg({ type: 'success', text: `${snapshot.symbol} snapshot saved and added to candidates.` });
+            resetSignalForm();
+        } catch (err: any) {
+            setSignalMsg({ type: 'error', text: err?.response?.data?.msg || 'Failed to save snapshot.' });
+        } finally {
+            setSignalLoading(false);
+        }
+    };
+
+    const addSignalCandidate = () => {
+        const snapshot = buildSignalSnapshot();
+        if (!snapshot) return;
+        setSignalSnapshots(prev => [...prev, snapshot]);
+        setSignalMsg({ type: 'info', text: `${snapshot.symbol} added as a recommendation candidate.` });
+        resetSignalForm();
+    };
+
+    const removeSignalCandidate = (index: number) => {
+        setSignalSnapshots(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const loadRecommendations = async () => {
+        if (!signalSnapshots.length) {
+            setSignalMsg({ type: 'error', text: 'Add at least one candidate snapshot first.' });
+            return;
+        }
+
+        setSignalLoading(true);
+        setSignalMsg(null);
+        setRecommendations([]);
+        try {
+            const data = await stockLearningService.recommend(signalSnapshots, {
+                confidenceThreshold: Number(confidenceThreshold) || 0.6,
+                includeAnalysis: true,
+            });
+            setRecommendations(data.recommendations);
+            setSignalMsg({
+                type: data.recommendations.length ? 'success' : 'info',
+                text: data.analysisMessage || `${data.recommendations.length} recommendation(s) found.`,
+            });
+        } catch (err: any) {
+            setSignalMsg({ type: 'error', text: err?.response?.data?.msg || 'Failed to load recommendations.' });
+        } finally {
+            setSignalLoading(false);
+        }
+    };
+
+    const runLearningUpdate = async () => {
+        setSignalLoading(true);
+        setSignalMsg(null);
+        setLearningResult(null);
+        try {
+            const result = await stockLearningService.runLearning(learningDate || undefined);
+            setLearningResult(result);
+            setSignalMsg({ type: 'success', text: `Learning complete: ${result.updated || 0} pattern stat(s) updated.` });
+        } catch (err: any) {
+            setSignalMsg({ type: 'error', text: err?.response?.data?.msg || 'Learning update failed.' });
+        } finally {
+            setSignalLoading(false);
+        }
     };
 
     // ── Mini candlestick chart ──
@@ -532,6 +661,147 @@ export default function Investments() {
                         )}
                     </div>
                 )}
+
+                {/* ══ SIGNALS TAB ══ */}
+                {tab === 'signals' && (
+                    <div style={styles.signalLayout}>
+                        <div style={styles.signalPanel}>
+                            <h2 style={styles.tradeTitle}>Stock Learning Signals</h2>
+                            <p style={styles.tradeSubtitle}>Save snapshots, build a candidate list, and ask FinPal for learned recommendations.</p>
+
+                            {signalMsg && (
+                                <div style={{
+                                    ...styles.tradeMsg,
+                                    background: signalMsg.type === 'success' ? '#064e3b' : signalMsg.type === 'error' ? '#450a0a' : '#172554',
+                                    borderColor: signalMsg.type === 'success' ? '#34d399' : signalMsg.type === 'error' ? '#f87171' : '#60a5fa',
+                                    color: signalMsg.type === 'success' ? '#a7f3d0' : signalMsg.type === 'error' ? '#fecaca' : '#bfdbfe',
+                                }}>
+                                    {signalMsg.text}
+                                </div>
+                            )}
+
+                            <div style={styles.signalGrid}>
+                                <div style={styles.fieldGroup}>
+                                    <label style={styles.label}>Symbol</label>
+                                    <input style={styles.input} value={signalForm.symbol}
+                                        onChange={e => setSignalForm(prev => ({ ...prev, symbol: e.target.value.toUpperCase() }))}
+                                        placeholder="AAPL" />
+                                </div>
+                                <div style={styles.fieldGroup}>
+                                    <label style={styles.label}>Price</label>
+                                    <input style={styles.input} type="number" value={signalForm.price}
+                                        onChange={e => setSignalForm(prev => ({ ...prev, price: e.target.value }))}
+                                        placeholder="190.50" />
+                                </div>
+                                <div style={styles.fieldGroup}>
+                                    <label style={styles.label}>Volume</label>
+                                    <input style={styles.input} type="number" value={signalForm.volume}
+                                        onChange={e => setSignalForm(prev => ({ ...prev, volume: e.target.value }))}
+                                        placeholder="1200000" />
+                                </div>
+                                <div style={styles.fieldGroup}>
+                                    <label style={styles.label}>RSI</label>
+                                    <input style={styles.input} type="number" value={signalForm.rsi}
+                                        onChange={e => setSignalForm(prev => ({ ...prev, rsi: e.target.value }))}
+                                        placeholder="28" />
+                                </div>
+                                <div style={styles.fieldGroup}>
+                                    <label style={styles.label}>Price Change %</label>
+                                    <input style={styles.input} type="number" value={signalForm.priceChange}
+                                        onChange={e => setSignalForm(prev => ({ ...prev, priceChange: e.target.value }))}
+                                        placeholder="3.4" />
+                                </div>
+                                <div style={styles.fieldGroup}>
+                                    <label style={styles.label}>Avg Volume</label>
+                                    <input style={styles.input} type="number" value={signalForm.avgVolume}
+                                        onChange={e => setSignalForm(prev => ({ ...prev, avgVolume: e.target.value }))}
+                                        placeholder="900000" />
+                                </div>
+                            </div>
+
+                            <div style={styles.tradeButtons}>
+                                <button style={{ ...styles.tradeBtn, ...styles.buyBtn }} onClick={saveSignalSnapshot} disabled={signalLoading}>
+                                    Save Snapshot
+                                </button>
+                                <button style={{ ...styles.tradeBtn, background: '#1e293b', color: '#cbd5e1' }} onClick={addSignalCandidate} disabled={signalLoading}>
+                                    Add Candidate
+                                </button>
+                            </div>
+
+                            <div style={{ ...styles.fieldGroup, marginTop: '1.5rem' }}>
+                                <label style={styles.label}>Confidence Threshold</label>
+                                <input style={styles.input} type="number" min="0" max="1" step="0.05"
+                                    value={confidenceThreshold}
+                                    onChange={e => setConfidenceThreshold(e.target.value)} />
+                            </div>
+
+                            <button style={{ ...styles.tradeBtn, width: '100%', background: '#312e81', color: '#c4b5fd' }}
+                                onClick={loadRecommendations} disabled={signalLoading || !signalSnapshots.length}>
+                                {signalLoading ? 'Working...' : 'Get Recommendations'}
+                            </button>
+
+                            <div style={styles.learningBox}>
+                                <label style={styles.label}>Run Learning For Date</label>
+                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                    <input style={{ ...styles.input, flex: 1, minWidth: 180 }} type="date"
+                                        value={learningDate}
+                                        onChange={e => setLearningDate(e.target.value)} />
+                                    <button style={{ ...styles.tradeBtn, flex: '0 0 auto', background: '#0f172a', color: '#94a3b8', border: '1px solid #334155' }}
+                                        onClick={runLearningUpdate} disabled={signalLoading}>
+                                        Run
+                                    </button>
+                                </div>
+                                {learningResult && (
+                                    <p style={styles.learningMeta}>
+                                        Evaluated {learningResult.evaluated || 0}, skipped {learningResult.skipped || 0}, errors {learningResult.errors?.length || 0}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div style={styles.signalPanel}>
+                            <h2 style={styles.tradeTitle}>Candidates</h2>
+                            {signalSnapshots.length === 0 ? (
+                                <EmptyState message="Add snapshots to build a recommendation candidate list." />
+                            ) : (
+                                <div style={styles.signalList}>
+                                    {signalSnapshots.map((snap, index) => (
+                                        <div key={`${snap.symbol}-${index}`} style={styles.signalItem}>
+                                            <div>
+                                                <div style={styles.symbolCell}>{snap.symbol}</div>
+                                                <div style={styles.signalMeta}>
+                                                    Price {fmt(snap.price)} · RSI {snap.rsi} · Vol {snap.volume.toLocaleString()}
+                                                </div>
+                                            </div>
+                                            <button style={styles.iconBtn} onClick={() => removeSignalCandidate(index)}>Remove</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <h2 style={{ ...styles.tradeTitle, marginTop: '2rem' }}>Recommendations</h2>
+                            {recommendations.length === 0 ? (
+                                <p style={styles.signalMeta}>Recommendations will appear here after your candidates match learned patterns.</p>
+                            ) : (
+                                <div style={styles.recommendationList}>
+                                    {recommendations.map(rec => (
+                                        <div key={rec.symbol} style={styles.recommendationCard}>
+                                            <div style={styles.recommendationHeader}>
+                                                <span style={styles.symbolCell}>{rec.symbol}</span>
+                                                <span style={styles.confidenceBadge}>{Math.round(rec.confidence * 100)}%</span>
+                                            </div>
+                                            <div style={styles.signalMeta}>{rec.pattern}</div>
+                                            <div style={styles.signalMeta}>
+                                                {rec.successCount} wins · {rec.failCount} losses · {rec.analysisSource || 'fallback'}
+                                            </div>
+                                            {rec.analysis && <p style={styles.analysisCopy}>{rec.analysis}</p>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -603,4 +873,18 @@ const styles: Record<string, React.CSSProperties> = {
     fundRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.75rem', background: '#0f172a', borderRadius: '8px' },
     fundLabel: { color: '#64748b', fontSize: '0.85rem' },
     fundValue: { color: '#f1f5f9', fontWeight: 600, fontSize: '0.9rem' },
+    signalLayout: { display: 'grid', gridTemplateColumns: 'minmax(300px, 0.95fr) minmax(320px, 1.05fr)', gap: '1.25rem', alignItems: 'start' },
+    signalPanel: { background: '#111827', border: '1px solid #1e293b', borderRadius: '16px', padding: '1.5rem' },
+    signalGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' },
+    signalList: { display: 'flex', flexDirection: 'column', gap: '0.65rem' },
+    signalItem: { display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '0.8rem 0.9rem' },
+    signalMeta: { color: '#64748b', fontSize: '0.82rem', marginTop: '0.25rem', lineHeight: 1.5 },
+    iconBtn: { background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', borderRadius: '8px', padding: '0.45rem 0.7rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 },
+    learningBox: { marginTop: '1.5rem', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '1rem' },
+    learningMeta: { color: '#64748b', fontSize: '0.82rem', margin: '0.75rem 0 0' },
+    recommendationList: { display: 'flex', flexDirection: 'column', gap: '0.8rem' },
+    recommendationCard: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '1rem' },
+    recommendationHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' },
+    confidenceBadge: { background: '#064e3b', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)', borderRadius: '999px', padding: '0.2rem 0.65rem', fontSize: '0.78rem', fontWeight: 800 },
+    analysisCopy: { color: '#cbd5e1', fontSize: '0.88rem', lineHeight: 1.65, margin: '0.75rem 0 0' },
 };

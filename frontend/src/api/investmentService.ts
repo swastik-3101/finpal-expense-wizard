@@ -105,6 +105,36 @@ export interface DashboardData {
     active: Mover[];
 }
 
+export interface StockSnapshotInput {
+    symbol: string;
+    price: number;
+    volume: number;
+    rsi: number;
+    priceChange?: number;
+    avgVolume?: number;
+    date?: string;
+}
+
+export interface StockRecommendation {
+    symbol: string;
+    confidence: number;
+    pattern: string;
+    patterns: string[];
+    price?: number;
+    volume?: number;
+    rsi?: number;
+    successCount: number;
+    failCount: number;
+    analysis?: string;
+    analysisSource?: 'ai' | 'fallback';
+}
+
+export interface StockRecommendationResponse {
+    recommendations: StockRecommendation[];
+    aiAnalysisEnabled: boolean;
+    analysisMessage?: string;
+}
+
 // ─── Investment Service ───────────────────────────────────────────────────────
 export const investmentService = {
     buyStock: async (data: TradeRequest) => {
@@ -157,6 +187,28 @@ export const marketService = {
     },
     getCandles: async (symbol: string): Promise<{ candles: Candle[] }> => {
         const res = await api.get(`/market/candles/${symbol}`);
+        return res.data;
+    },
+};
+
+export const stockLearningService = {
+    saveSnapshot: async (data: StockSnapshotInput) => {
+        const res = await api.post('/stocks/snapshot', data);
+        return res.data;
+    },
+    recommend: async (
+        snapshots: StockSnapshotInput[],
+        options: { confidenceThreshold?: number; includeAnalysis?: boolean } = {}
+    ): Promise<StockRecommendationResponse> => {
+        const res = await api.post('/stocks/recommend', {
+            snapshots,
+            confidenceThreshold: options.confidenceThreshold,
+            includeAnalysis: options.includeAnalysis,
+        });
+        return res.data;
+    },
+    runLearning: async (date?: string) => {
+        const res = await api.post('/stocks/learn', date ? { date } : {});
         return res.data;
     },
 };
