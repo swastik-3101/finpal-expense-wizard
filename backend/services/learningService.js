@@ -33,7 +33,7 @@ async function updatePatternPerformance(fetchTodayPrice, options = {}) {
       }
 
       const change = (todayPrice - snap.price) / snap.price;
-      const success = change > 0;
+      const success = change >= 0.02;
       const patternKey = getPatternKey(snap.patterns);
 
       const stats = await PatternStats.findOneAndUpdate(

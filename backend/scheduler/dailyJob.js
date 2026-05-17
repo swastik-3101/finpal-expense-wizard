@@ -1,6 +1,9 @@
 const cron = require('node-cron');
 const { updatePatternPerformance } = require('../services/learningService');
 const { fetchCurrentPrice } = require('../services/stockPriceService');
+const {
+  buildDailySnapshots,
+} = require('../services/marketSnapshotPipelineService');
 
 function startDailyLearningJob() {
   if (process.env.DISABLE_STOCK_LEARNING_CRON === 'true') {
@@ -16,6 +19,7 @@ function startDailyLearningJob() {
       console.log('Running daily stock pattern learning...');
 
       try {
+        await buildDailySnapshots();
         const results = await updatePatternPerformance(fetchCurrentPrice);
         console.log('Daily stock pattern learning complete:', results);
       } catch (error) {

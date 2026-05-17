@@ -135,6 +135,25 @@ export interface StockRecommendationResponse {
     analysisMessage?: string;
 }
 
+export interface PersonalizedStockAnalysisResponse {
+
+    response: string;
+
+    availableBalance: number;
+
+    expenseSummary: {
+        total: number;
+        averagePerDay: number;
+        count: number;
+    };
+
+    recommendations: StockRecommendation[];
+
+    primaryRecommendation?: StockRecommendation | null;
+
+    source: 'ai' | 'fallback';
+}
+
 // ─── Investment Service ───────────────────────────────────────────────────────
 export const investmentService = {
     buyStock: async (data: TradeRequest) => {
@@ -189,6 +208,13 @@ export const marketService = {
         const res = await api.get(`/market/candles/${symbol}`);
         return res.data;
     },
+    getPersonalizedStockAnalysis:async (): Promise<PersonalizedStockAnalysisResponse> => {
+        const res =
+        await api.get(
+        '/market/personalized-stock-analysis'
+        );
+        return res.data;
+},
 };
 
 export const stockLearningService = {

@@ -36,8 +36,10 @@ export default function Insights() {
 
     try {
       const res = await api.post('/insights/personalized-stock-analysis');
+      console.log(res.data);
 
       setSummary(res.data);
+      console.log(res.data);
       setMessages(prev => [
         ...prev.slice(0, -1),
         { role: 'assistant', content: res.data.response || 'Analysis complete, but no response was returned.' },
@@ -103,7 +105,50 @@ export default function Insights() {
             </div>
             <div style={styles.contextItem}>
               <span style={styles.contextLabel}>Suggested Stock</span>
-              <strong>{summary.recommendation?.symbol || 'Hold cash'}</strong>
+              <div
+  style={{
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  }}
+>
+  {summary.recommendations?.length ? (
+
+    summary.recommendations.map(
+      (stock: any) => (
+
+        <div
+          key={stock.symbol}
+          style={{
+            padding: '0.4rem 0',
+            borderBottom:
+              '1px solid #1e293b',
+          }}
+        >
+          <strong>
+            {stock.symbol}
+          </strong>
+
+          <div
+            style={{
+              fontSize: '0.8rem',
+              color: '#94a3b8',
+            }}
+          >
+            {(stock.confidence * 100)
+              .toFixed(0)}%
+            confidence
+          </div>
+        </div>
+      )
+    )
+
+  ) : (
+
+    <strong>Hold cash</strong>
+
+  )}
+</div>
             </div>
           </div>
         )}

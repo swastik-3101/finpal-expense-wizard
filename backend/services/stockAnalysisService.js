@@ -21,26 +21,70 @@ function buildFallbackAnalysis(recommendation) {
 
 function buildPrompt(recommendations) {
   const stockData = recommendations.map((item) => ({
+
     symbol: item.symbol,
+
     pattern: item.pattern,
+
     confidence: item.confidence,
+
     successCount: item.successCount,
+
     failCount: item.failCount,
+
     price: item.price,
+
     volume: item.volume,
+
     rsi: item.rsi,
+
     patterns: item.patterns,
-  }));
 
-  return `You are FinPal's stock analysis assistant.
+    previousSnapshotPrice:
+      item.previousSnapshotPrice,
 
-Use only the structured stock data below. Do not invent prices, indicators, or news.
-Explain why each recommendation was selected using its detected patterns, learned confidence, RSI, volume, and historical success/failure counts.
-Keep each explanation to 2 concise sentences. Include one practical risk or confirmation point.
+    changeFromPreviousSnapshot:
+      item.changeFromPreviousSnapshot,
 
-Return ONLY valid JSON in this exact shape:
+    riskLevel:
+      item.confidence >= 0.75
+        ? 'low'
+        : item.confidence >= 0.6
+        ? 'medium'
+        : 'high',
+
+    recommendationReason:
+      `Matched ${item.pattern} with ${(item.confidence * 100).toFixed(1)}% historical confidence.`,
+}));
+
+  return `You are FinPal's AI-powered stock analysis assistant.
+
+Use ONLY the structured stock data below.
+
+Do NOT invent:
+- stock symbols
+- prices
+- news
+- indicators
+- historical performance
+
+Explain:
+- why each stock was selected
+- detected technical patterns
+- confidence score
+- RSI interpretation
+- volume behavior
+- risk level
+- historical learning quality
+
+Keep each explanation concise but insightful.
+
+Return ONLY valid JSON:
 [
-  { "symbol": "AAPL", "analysis": "..." }
+  {
+    "symbol": "AAPL",
+    "analysis": "..."
+  }
 ]
 
 Stock recommendations:

@@ -10,8 +10,8 @@ const getGroq = () => {
     return apiKey ? new Groq({ apiKey }) : null;
 };
 
-const FINNHUB_KEY = 'yourapikeyhere';
-const ALPHA_KEY = 'yourapikeyhere';
+const FINNHUB_KEY = process.env.FINNHUB_KEY;
+const ALPHA_KEY = process.env.ALPHA_VANTAGE_KEY;
 
 // ── cache movers (same as marketController) ──────────────────────────────────
 const TTL = 60 * 1000;
@@ -127,30 +127,76 @@ async function getExpenseSummary(userId) {
     };
 }
 
-function chooseRecommendation(recommendations, snapshots, availableBalance) {
-    const maxBudget = availableBalance * 0.1;
-    const sorted = [...recommendations].sort((a, b) => b.confidence - a.confidence);
-    const learnedPick = sorted.find((rec) => Number(rec.price) > 0 && Number(rec.price) <= maxBudget);
-    if (learnedPick) return { ...learnedPick, source: 'learned' };
+function chooseRecommendations(
+  recommendations,
+  availableBalance
+) {
 
-    const marketPick = [...snapshots]
-        .filter((snap) => snap.price > 0 && snap.price <= maxBudget)
-        .sort((a, b) => (b.priceChange || 0) - (a.priceChange || 0))[0];
+  const minBudget =
+    availableBalance * 0.05;
 
-    if (!marketPick) return null;
+  const maxBudget =
+    availableBalance * 0.15;
 
-    return {
-        symbol: marketPick.symbol,
-        price: marketPick.price,
-        previousSnapshotDate: marketPick.previousSnapshotDate,
-        previousSnapshotPrice: marketPick.previousSnapshotPrice,
-        changeFromPreviousSnapshot: marketPick.changeFromPreviousSnapshot,
-        confidence: 0,
-        pattern: marketPick.priceChange > 3 ? 'SPIKE' : 'MARKET_MOMENTUM',
-        successCount: 0,
-        failCount: 0,
-        source: 'market',
-    };
+  // Only quality picks
+  const filtered =
+    recommendations.filter((rec) => {
+
+      const totalSamples =
+        (rec.successCount || 0) +
+        (rec.failCount || 0);
+
+      return (
+        rec.confidence >= 0.6 &&
+        totalSamples >= 5 &&
+        rec.price > 0
+      );
+    });
+
+  // Shuffle randomly
+  const shuffled =
+    [...filtered].sort(
+      () => Math.random() - 0.5
+    );
+
+  const selected = [];
+
+  let totalCost = 0;
+
+  for (const rec of shuffled) {
+
+    const quantity =
+      Math.max(
+        1,
+        Math.floor(minBudget / rec.price)
+      );
+
+    const estimatedCost =
+      quantity * rec.price;
+
+    // Stop if exceeding safe exposure
+    if (
+      totalCost + estimatedCost >
+      maxBudget
+    ) {
+      continue;
+    }
+
+    selected.push({
+      ...rec,
+      suggestedQuantity: quantity,
+      estimatedCost,
+    });
+
+    totalCost += estimatedCost;
+
+    // Max 2 stocks
+    if (selected.length >= 2) {
+      break;
+    }
+  }
+
+  return selected;
 }
 
 function buildFallbackPersonalizedResponse({ availableBalance, expenseSummary, pick }) {
@@ -182,57 +228,165 @@ exports.getPersonalizedStockAnalysis = async (req, res) => {
 
         const availableBalance = Number(req.user.availableBalance || req.user.balance || req.user.currentBalance || 0);
         const data = await getDashboardData();
-        const snapshots = await attachPreviousSnapshots(uniqueMoverSnapshots([
+        const { detectPatterns } =
+    require('../services/patternDetectionService');
+
+    const rawSnapshots =
+    await attachPreviousSnapshots(
+        uniqueMoverSnapshots([
             ...(data.top_gainers || []).slice(0, 10),
             ...(data.most_actively_traded || []).slice(0, 10),
             ...(data.top_losers || []).slice(0, 5),
-        ]));
+        ])
+    );
+
+const snapshots =
+    rawSnapshots.map((snapshot) => ({
+        ...snapshot,
+        patterns: detectPatterns(snapshot),
+    }));
+
+console.log('Snapshots with patterns:', snapshots);
 
         await Promise.allSettled(snapshots.map((snapshot) => saveSnapshot(snapshot)));
 
-        const recommendations = await recommendStocks(snapshots, { confidenceThreshold: 0.6 });
         const expenseSummary = await getExpenseSummary(req.user.id);
-        const pick = chooseRecommendation(recommendations, snapshots, availableBalance);
-        const fallback = buildFallbackPersonalizedResponse({ availableBalance, expenseSummary, pick });
-        const groq = getGroq();
+        const recommendations =
+  await recommendStocks(
+    snapshots,
+    {
+      confidenceThreshold: 0.6,
+    }
+  );
 
-        if (!groq) {
-            return res.json({
-                response: fallback,
-                availableBalance,
-                expenseSummary,
-                recommendation: pick,
-                source: 'fallback',
-            });
-        }
+const picks =
+  chooseRecommendations(
+    recommendations,
+    availableBalance
+  );
 
-        const prompt = `You are FinPal, a personal finance stock assistant.
+const pick =
+  picks[0] || null;
+        const fallback =
+  buildFallbackPersonalizedResponse({
+    availableBalance,
+    expenseSummary,
+    pick,
+  });
 
-Use only the data below. Give one direct chat-style answer.
-Recommend at most one stock and a share quantity the user can afford.
-Be conservative: suggest using only 5-10% of available balance.
-Use simple words for a non-market user.
-Mention whether the signal came from today's snapshot or learned history.
-Mention recent expenses, available balance, stock symbol, quantity, estimated cost, and one simple risk.
-If learned confidence is unavailable, say it is based on today's market momentum, not learned history.
+// IMPORTANT:
+// If no learned recommendation exists,
+// DO NOT call AI.
+if (!pick) {
 
-Data:
-${JSON.stringify({ availableBalance, expenseSummary, pick, recommendations: recommendations.slice(0, 5) }, null, 2)}`;
+    return res.json({
+        response: fallback,
+        availableBalance,
+        expenseSummary,
+        recommendations: [],
+        primaryRecommendation: null,
+        source: 'fallback',
+    });
+}
+
+const groq = getGroq();
+
+if (!groq) {
+
+    return res.json({
+    response: fallback,
+
+    availableBalance,
+
+    expenseSummary,
+
+    recommendations: picks,
+
+    primaryRecommendation: pick,
+
+    source: 'fallback',
+});
+}
+const enrichedPicks =
+  picks.map((pick) => {
+
+    const budgetPerStock =
+      availableBalance * 0.05;
+
+    const quantity =
+      Math.max(
+        1,
+        Math.floor(
+          budgetPerStock / pick.price
+        )
+      );
+
+    return {
+      ...pick,
+      suggestedQuantity: quantity,
+      estimatedCost:
+        quantity * pick.price,
+    };
+});
+
+        const prompt = `
+You are FinPal, a friendly AI finance assistant.
+
+Use ONLY the provided JSON data.
+
+Speak naturally like a modern finance app.
+
+IMPORTANT:
+- Only discuss the recommendations already provided.
+- Do NOT invent extra stocks.
+- Do NOT force exactly 3 recommendations.
+- Never mention missing recommendations.
+- Keep the tone conversational, short, and practical.
+- Use beginner-friendly wording.
+- Mention:
+  - stock symbol
+  - estimated cost
+  - suggested quantity
+  - simple risk
+  - whether the signal came from:
+    - learned historical confidence
+    - or today's momentum
+- Keep investment suggestions conservative.
+- Never suggest using more than 15% total balance.
+- Avoid repeating balance and expense values too many times.
+- Do not sound like a financial report.
+
+Return ONLY a plain chat response.
+
+DATA:
+${JSON.stringify({
+  availableBalance,
+  expenseSummary,
+  recommendations: enrichedPicks,
+}, null, 2)}
+`;
 
         const completion = await groq.chat.completions.create({
             model: process.env.STOCK_ANALYSIS_MODEL || 'llama-3.1-8b-instant',
             messages: [{ role: 'user', content: prompt }],
             max_tokens: 450,
-            temperature: 0.4,
+            temperature: 0.25,
         });
 
         res.json({
-            response: completion.choices?.[0]?.message?.content || fallback,
-            availableBalance,
-            expenseSummary,
-            recommendation: pick,
-            source: 'ai',
-        });
+    response:
+      completion.choices?.[0]?.message?.content || fallback,
+
+    availableBalance,
+
+    expenseSummary,
+
+    recommendations: picks,
+
+    primaryRecommendation: pick,
+
+    source: 'ai',
+});
     } catch (err) {
         console.error('getPersonalizedStockAnalysis error:', err.message);
         res.json({
