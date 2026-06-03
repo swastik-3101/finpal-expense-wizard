@@ -8,6 +8,8 @@ const expenseRoutes = require('./routes/expenseRoutes');
 const investmentRoutes = require('./routes/investmentRoutes');
 const marketRoutes = require('./routes/marketRoutes');
 const insightsRoutes = require('./routes/insightsRoutes');
+const goalRoutes = require('./routes/goalRoutes');
+const incomeRoutes = require('./routes/incomeRoutes');
 
 
 // Connect to database
@@ -27,6 +29,8 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/investments', investmentRoutes);
 app.use('/api/market', marketRoutes);
 app.use('/api/insights', insightsRoutes);
+app.use('/api/goals', goalRoutes);
+app.use('/api/income', incomeRoutes);
 
 // Error handler
 app.use(errorHandler);

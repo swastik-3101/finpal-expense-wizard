@@ -10,8 +10,7 @@ print("Loading EasyOCR model... (only happens once)")
 reader = easyocr.Reader(['en'], gpu=False, verbose=False)
 print("EasyOCR ready!")
 
-client = Groq(api_key="yourapikeyhere")
-
+client = Groq(api_key="YOUR_GROQ_API_KEY")
 PROMPT = """From this receipt OCR text, extract and return ONLY a raw JSON object with no explanation, no code fences, nothing else.
 
 Format:

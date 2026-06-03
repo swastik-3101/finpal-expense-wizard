@@ -1,10 +1,10 @@
 const axios = require('axios');
 const Groq = require('groq-sdk');
 
-const groq = new Groq({ apiKey: "yourapikeyhere"});
+const groq = new Groq({ apiKey: "" });
 
-const FINNHUB_KEY = 'yourapikeyhere';
-const ALPHA_KEY = 'yourapikeyhere';
+const FINNHUB_KEY = '';
+const ALPHA_KEY = '';
 
 // ── cache movers (same as marketController) ──────────────────────────────────
 const TTL = 60 * 1000;

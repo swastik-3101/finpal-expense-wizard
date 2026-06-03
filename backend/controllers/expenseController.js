@@ -1,11 +1,12 @@
 const Expense = require('../models/Expense');
 const multer = require('multer');
-const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 const FormData = require('form-data');
 
+// -------------------------------------------------------
 // Multer disk storage config
+// -------------------------------------------------------
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
@@ -29,7 +30,9 @@ exports.upload = multer({
   fileFilter
 }).single('receipt');
 
+// -------------------------------------------------------
 // Get all expenses for logged-in user
+// -------------------------------------------------------
 exports.getExpenses = async (req, res) => {
   try {
     const expenses = await Expense.find({ user: req.user.id }).sort({ date: -1 });
@@ -40,7 +43,9 @@ exports.getExpenses = async (req, res) => {
   }
 };
 
+// -------------------------------------------------------
 // Create a new expense
+// -------------------------------------------------------
 exports.createExpense = async (req, res) => {
   try {
     const { title, amount, category, date } = req.body;
@@ -53,7 +58,9 @@ exports.createExpense = async (req, res) => {
   }
 };
 
+// -------------------------------------------------------
 // Update an existing expense
+// -------------------------------------------------------
 exports.updateExpense = async (req, res) => {
   try {
     const { title, amount, category, date } = req.body;
@@ -73,7 +80,9 @@ exports.updateExpense = async (req, res) => {
   }
 };
 
+// -------------------------------------------------------
 // Delete an expense
+// -------------------------------------------------------
 exports.deleteExpense = async (req, res) => {
   try {
     const expense = await Expense.findById(req.params.id);
@@ -88,7 +97,9 @@ exports.deleteExpense = async (req, res) => {
   }
 };
 
+// -------------------------------------------------------
 // Get distinct expense categories
+// -------------------------------------------------------
 exports.getCategories = async (req, res) => {
   try {
     const categories = await Expense.distinct('category', { user: req.user.id });
@@ -102,7 +113,9 @@ exports.getCategories = async (req, res) => {
   }
 };
 
-// Upload receipt — now calls FastAPI OCR microservice
+// -------------------------------------------------------
+// Upload receipt — calls FastAPI OCR microservice
+// -------------------------------------------------------
 exports.uploadReceipt = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ msg: 'No file uploaded' });
@@ -112,10 +125,9 @@ exports.uploadReceipt = async (req, res) => {
 
     const response = await axios.post('http://localhost:5001/parse-receipt', formData, {
       headers: formData.getHeaders(),
-      timeout: 15000
+      timeout: 60000
     });
 
-    // Clean up uploaded file
     fs.unlink(req.file.path, err => {
       if (err) console.error('Error deleting temp file:', err);
     });
@@ -124,11 +136,8 @@ exports.uploadReceipt = async (req, res) => {
       msg: 'Receipt processed successfully',
       parsedExpense: response.data
     });
-
   } catch (err) {
-    // Clean up on error too
     if (req.file) fs.unlink(req.file.path, () => { });
-
     if (err.code === 'ECONNREFUSED') {
       return res.status(503).json({ msg: 'OCR service is not running. Start it with: uvicorn ocr_service:app --port 5001' });
     }
@@ -137,7 +146,9 @@ exports.uploadReceipt = async (req, res) => {
   }
 };
 
+// -------------------------------------------------------
 // Get summarized expense context for chatbot (last 30 days)
+// -------------------------------------------------------
 exports.getChatContext = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -172,14 +183,14 @@ exports.getChatContext = async (req, res) => {
     const topCategories = Object.entries(categoryTotals)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
-      .map(([cat, amt]) => `${cat}: $${amt.toFixed(2)}`)
+      .map(([cat, amt]) => `${cat}: ₹${amt.toFixed(2)}`)
       .join(", ");
 
     const summary =
-      `In the last 30 days, you spent a total of $${total.toFixed(2)}.\n` +
+      `In the last 30 days, you spent a total of ₹${total.toFixed(2)}.\n` +
       `Top categories: ${topCategories}.\n` +
-      `Your highest expense was "${highestExpense.title}" at $${highestExpense.amount.toFixed(2)}.\n` +
-      `You're spending an average of $${averagePerDay.toFixed(2)} per day.`;
+      `Your highest expense was "${highestExpense.title}" at ₹${highestExpense.amount.toFixed(2)}.\n` +
+      `You're spending an average of ₹${averagePerDay.toFixed(2)} per day.`;
 
     res.json({ context: summary });
   } catch (err) {

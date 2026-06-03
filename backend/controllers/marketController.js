@@ -1,9 +1,9 @@
 const axios = require('axios');
 
-const FINNHUB_KEY = 'yourapikeyhere';
-const FMP_KEY = 'yourapikeyhere';
-const ALPHA_KEY = 'yourapikeyhere';
-const TWELVE_KEY = 'yourapikeyhere';
+const FINNHUB_KEY = 'd7j1kq1r01qn2qavqepgd7j1kq1r01qn2qavqeq0';
+const FMP_KEY = 'NeC9801M5sbdDhsMxqe8KVKvZBdEkABM';
+const ALPHA_KEY = 'KSF39QXBS0ZTQ1AT';
+const TWELVE_KEY = '0fe0e45489eb4b058b5cb1694241dc21';
 
 // -------------------------------------------------------
 // Simple in-memory cache (mirrors SimpleCache.java)
